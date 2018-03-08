@@ -1,0 +1,22 @@
+{
+  "name": "build_chromium",
+  "version": "0.0.1",
+  "description": "Build and package Chromium toolchain.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/halton/build_chromium.git"
+  },
+  "keywords": [
+    "Chrome"
+  ],
+  "author": "Halton Huo <halton.huo@gmail.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/halton/build_chromium/issues"
+  },
+  "homepage": "https://github.com/halton/build_chromium#readme"
+}

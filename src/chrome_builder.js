@@ -1,34 +1,83 @@
 'use strict';
 
+const chdir = require('chdir');
 const fs = require('fs');
 const os = require('os');
+const spawn = require('child_process').spawn;
 const path = require('path');
 
 class ChromeBuilder {
-	constructor(commander) {
-		this.commander = commander;
+	constructor(subCommand, rootDir, targetOs, targetCpu, buildType) {
+		this.supportedSubCommands = ['sync', 'config', 'build', 'package', 'upload'];
+
+		this.subCommand = subCommand;
+		this.rootDir = path.resolve(rootDir);
+		this.buildType = buildType;
 
 		this.hostOs = getHostOs();
 		this.hostCpu = getHostCpu();
-		this.targetOs = commander.targetOs ? commander.targetOs : this.hostOs;
-		this.targetCpu = commander.targetCpu ? commander.targetCpu : this.hostCpu;
-		this.buildType = commander.buildType;
+		this.targetOs = targetOs ? targetOs : this.hostOs;
+		this.targetCpu = targetCpu ? targetCpu : this.hostCpu;
 
-		this.rootDir = path.resolve(this.commander.args[0]);
 		this.outDir = path.join(this.rootDir, 'out',
 														this.targetOs + '_' + this.targetCpu + '_' + this.buildType);
+
+
+		this.gnArgs = 'is_debug=' + (this.buildType == 'debug').toString();
 	}
 
-	validateOptions() {
+	isSupportedSubCommand() {
+		return this.supportedSubCommands.includes(this.subCommand);
+	}
+
+	validateRootDir() {
 		try {
 			fs.accessSync(this.rootDir);
 			fs.accessSync(path.resolve(this.rootDir, 'chrome', 'VERSION'));
 		} catch (e) {
-			console.log('Invalid chrome source dir: ' + this.rootDir);
 			return false;
 		}
 
 		return true;
+	}
+
+	run() {
+		switch (this.subCommand) {
+			case 'sync':
+				this.gclientSync();
+				break;
+			case 'config':
+				this.runGN();
+				break;
+			case 'build':
+				this.ninjaBuild();
+				break;
+			case 'package':
+				this.runPackage();
+				break;
+			case 'upload':
+				this.runUpload();
+				break;
+		}
+	}
+	gclientSync() {
+		execCommand('gclient', ['sync'], this.rootDir);
+	}
+
+	runGN() {
+		execCommand('gn', ['gen', `--args=${this.gnArgs}`, this.outDir], this.rootDir);
+	}
+
+	ninjaBuild() {
+
+	}
+
+	runPackage() {
+
+	}
+
+	runUpload() {
+
 	}
 }
 
@@ -72,10 +121,32 @@ function getHostCpu() {
 		case 's390':
 		case 's390x':
 		case 'x32':
-			console.error('Unsuppurted arch: %s', program.targetCpu);
+			console.error(`Unsuppurted arch: ${program.targetCpu}`);
 	}
 
 	return hostCpu;
+}
+
+function execCommand(cmd, args, workingDir) {
+	chdir(workingDir, () => {
+
+		const cmdFullStr = cmd + ' ' + args.join(' ');
+		const exec = spawn(cmd, [...args]);
+
+		exec.stdout.on('data', (data) => {
+		  console.log(`${data}`);
+		});
+
+		exec.stderr.on('data', (data) => {
+		  console.log(`${data}`);
+		});
+
+		exec.on('close', (code) => {
+			if (code !== 0)
+        console.log(`\"${cmdFullStr}\" exited with code ${code}`);
+		});
+
+	});
 }
 
 module.exports = {

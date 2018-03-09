@@ -7,7 +7,10 @@ const spawn = require('child_process').spawn;
 const path = require('path');
 
 class ChromeBuilder {
-  constructor(subCommand, rootDir, targetOs, targetCpu, buildType) {
+  constructor(subCommand, rootDir,
+              targetOs, targetCpu, buildType,
+              extraGnConfigs,
+              uploadConf) {
     this.supportedSubCommands = ['sync', 'config', 'build', 'package', 'upload'];
 
     this.subCommand = subCommand;
@@ -24,6 +27,7 @@ class ChromeBuilder {
 
 
     this.gnArgs = 'is_debug=' + (this.buildType == 'debug').toString();
+    if (extraGnConfigs) this.gnArgs += ' ' + extraGnConfigs;
   }
 
   isSupportedSubCommand() {
@@ -69,7 +73,11 @@ class ChromeBuilder {
   }
 
   ninjaBuild() {
+    let target = 'chrome';
+    if (this.targetOs === 'android')
+      target = 'chrome_public_apk';
 
+    execCommand('ninja', ['-C', this.outDir, target], this.rootDir);
   }
 
   runPackage() {

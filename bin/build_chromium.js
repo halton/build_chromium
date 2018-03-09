@@ -11,14 +11,17 @@ program
   .option('--target-os <targetOs>', 'Target OS', /^(android|chromeos|linux|nacl|mac|win)$/i, null)
   // Get list via "gn help target_cpu <out_dir>"
   .option('--target-cpu <targetCpu>', 'Target CPU', /^(x86|x64|arm|arm64|mipsel)$/i, null)
-  .option('--root-dir <rootDir>', 'Chromium source code directory', process.cwd())
+  .option('--extra-gn-args <extraGnArgs>', 'Extra args when running GN')
+  .option('--upload-conf <uploadConf>', 'The upload configuration file', './.upload.conf')
   .parse(process.argv);
 
 let builder = new ChromeBuilder(program.args[0],
                                 program.args[1],
                                 program.buildType,
                                 program.targetOs,
-                                program.targetCpu);
+                                program.targetCpu,
+                                program.extraGnArgs,
+                                program.uploadConf);
 
 if (!builder.isSupportedSubCommand()) {
   console.log(`Unsupported sub-command ${builder.subCommand}`);

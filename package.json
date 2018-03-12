@@ -4,8 +4,9 @@
   "description": "Build and package Chromium toolchain.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "linter": "node tools/linter.js"
   },
+  "pre-commit": [ "node", "tools/linter.js" ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/halton/build_chromium.git"
@@ -23,5 +24,13 @@
     "chdir": "0.0.0",
     "commander": "^2.15.0",
     "winston": "^3.0.0-rc1"
+  },
+  "devDependencies": {
+    "eslint": "^4.18.2",
+    "eslint-config-google": "^0.9.1",
+    "eslint-plugin-header": "^1.2.0",
+    "jshint": "^2.9.5",
+    "pre-commit": "^1.2.2",
+    "recursive-readdir": "^2.2.2"
   }
 }

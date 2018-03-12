@@ -1,7 +1,12 @@
+#!/usr/bin/env node
+
+// Use of this source code is governed by an Apache 2.0 license
+// that can be found in the LICENSE file.
+
 'use strict';
 
 const program = require('commander');
-const { ChromeBuilder } = require('../src/chrome_builder');
+const {ChromeBuilder} = require('../src/chrome_builder');
 
 program
   .version(require('../package.json').version)

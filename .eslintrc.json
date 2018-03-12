@@ -1,0 +1,16 @@
+{
+  "extends": "google",
+  "parserOptions": {
+    "ecmaVersion": 6
+  },
+  "plugins": [
+    "header"
+  ],
+  "rules": {
+    "header/header": [2, "line",
+        [{"pattern": "^ Use of this source code is governed by an Apache 2\\.0 license$"},
+        {"pattern": "^ that can be found in the LICENSE file\\.$"}]],
+    "max-len": ["error", 100, 2, { "ignoreUrls": true }],
+    "quotes": ["error", "single"]
+  }
+}

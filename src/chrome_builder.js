@@ -5,11 +5,12 @@ const fs = require('fs');
 const os = require('os');
 const spawn = require('child_process').spawn;
 const path = require('path');
+const winston = require('winston');
 
 class ChromeBuilder {
   constructor(subCommand, rootDir,
               targetOs, targetCpu, buildType,
-              extraGnConfigs,
+              extraGnArgs, logLevel,
               uploadConf) {
     this.supportedSubCommands = ['sync', 'config', 'build', 'package', 'upload'];
 
@@ -27,7 +28,24 @@ class ChromeBuilder {
 
 
     this.gnArgs = 'is_debug=' + (this.buildType == 'debug').toString();
-    if (extraGnConfigs) this.gnArgs += ' ' + extraGnConfigs;
+    if (extraGnArgs) this.gnArgs += ' ' + extraGnArgs;
+
+    // Handel logger
+    const logFilename = new Date().toISOString().substring(0, 10);
+    this.logFile = path.join(os.tmpdir(), 'chromium-' + logFilename + '.log');
+
+    this.logger = winston.createLogger({
+      level: logLevel,
+      format: winston.format.simple(),
+      transports: [
+        new winston.transports.Console({
+          colorize: true,
+        }),
+        new winston.transports.File({
+          filename: this.logFile,
+       })
+      ]
+    });
   }
 
   isSupportedSubCommand() {
@@ -65,11 +83,11 @@ class ChromeBuilder {
     }
   }
   gclientSync() {
-    execCommand('gclient', ['sync'], this.rootDir);
+    this.execCommand('gclient', ['sync'], this.rootDir);
   }
 
   runGN() {
-    execCommand('gn', ['gen', `--args=${this.gnArgs}`, this.outDir], this.rootDir);
+    this.execCommand('gn', ['gen', `--args=${this.gnArgs}`, this.outDir], this.rootDir);
   }
 
   ninjaBuild() {
@@ -77,7 +95,7 @@ class ChromeBuilder {
     if (this.targetOs === 'android')
       target = 'chrome_public_apk';
 
-    execCommand('ninja', ['-C', this.outDir, target], this.rootDir);
+    this.execCommand('ninja', ['-C', this.outDir, target], this.rootDir);
   }
 
   runPackage() {
@@ -87,6 +105,37 @@ class ChromeBuilder {
   runUpload() {
 
   }
+
+  execCommand(cmd, args, workingDir) {
+    chdir(workingDir, () => {
+
+      const cmdFullStr = cmd + ' ' + args.join(' ');
+      const start = new Date();
+      this.logger.info('Execution start at ' + start.toString() +
+                       '\n  Command: ' + cmdFullStr +
+                       '\n  Working Dir: ' + workingDir +
+                       '\n  Logging File: ' + this.logFile);
+
+      const exec = spawn(cmd, [...args]);
+
+      exec.stdout.on('data', (data) => {
+        this.logger.info(data.toString());
+      });
+
+      exec.stderr.on('data', (data) => {
+        this.logger.error(data.toString());
+      });
+
+      exec.on('close', (code) => {
+        const stop = new Date();
+        const outputStr = 'Execution stop at ' + stop.toString() +
+                          '\n  Exit code: ' + code.toString() + ' in ' + (stop - start) + ' ms';
+        (code != '0') ? this.logger.error(outputStr) : this.logger.info(outputStr);
+      });
+
+    });
+  }
+
 }
 
 // Get host OS
@@ -129,33 +178,12 @@ function getHostCpu() {
     case 's390':
     case 's390x':
     case 'x32':
-      console.error(`Unsuppurted arch: ${program.targetCpu}`);
+      this.logger.error(`Unsuppurted arch: ${program.targetCpu}`);
   }
 
   return hostCpu;
 }
 
-function execCommand(cmd, args, workingDir) {
-  chdir(workingDir, () => {
-
-    const cmdFullStr = cmd + ' ' + args.join(' ');
-    const exec = spawn(cmd, [...args]);
-
-    exec.stdout.on('data', (data) => {
-      console.log(`${data}`);
-    });
-
-    exec.stderr.on('data', (data) => {
-      console.log(`${data}`);
-    });
-
-    exec.on('close', (code) => {
-      if (code !== 0)
-        console.log(`\"${cmdFullStr}\" exited with code ${code}`);
-    });
-
-  });
-}
 
 module.exports = {
   ChromeBuilder

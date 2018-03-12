@@ -12,6 +12,7 @@ program
   // Get list via "gn help target_cpu <out_dir>"
   .option('--target-cpu <targetCpu>', 'Target CPU', /^(x86|x64|arm|arm64|mipsel)$/i, null)
   .option('--extra-gn-args <extraGnArgs>', 'Extra args when running GN')
+  .option('--log-level <logLevel>', 'Logging level', /^(error|warn|info|verbose)$/i, 'verbose')
   .option('--upload-conf <uploadConf>', 'The upload configuration file', './.upload.conf')
   .parse(process.argv);
 
@@ -21,6 +22,7 @@ let builder = new ChromeBuilder(program.args[0],
                                 program.targetOs,
                                 program.targetCpu,
                                 program.extraGnArgs,
+                                program.logLevel,
                                 program.uploadConf);
 
 if (!builder.isSupportedSubCommand()) {

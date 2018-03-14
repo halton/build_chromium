@@ -4,150 +4,99 @@
 'use strict';
 
 const chdir = require('chdir');
-const fs = require('fs');
-const os = require('os');
-const spawn = require('child_process').spawn;
-const path = require('path');
-const winston = require('winston');
-
+const {spawn} = require('child_process');
 
 /**
  * Chrome builder class.
  */
 class ChromeBuilder {
   /**
-   * @param {string} subCommand Sub command.
-   * @param {string} rootDir Chromium source dir.
-   * @param {string} targetOs Target OS.
-   * @param {string} targetCpu Target CPU.
-   * @param {string} buildType Build type.
-   * @param {string} extraGnArgs Extra arguments when run 'gn gen'.
-   * @param {string} logLevel Logging level.
-   * @param {string} uploadConf Upload configuration file.
+   * @param {ChromeBuilderConf} conf configuration file.
    */
-  constructor(subCommand, rootDir,
-              targetOs, targetCpu, buildType,
-              extraGnArgs, logLevel,
-              uploadConf) {
-    this.supportedSubCommands = ['sync', 'config', 'build', 'package', 'upload'];
-
-    this.subCommand = subCommand;
-    this.rootDir = path.resolve(rootDir);
-    this.buildType = buildType;
-
-    this.hostOs = this.getHostOs();
-    this.hostCpu = this.getHostCpu();
-    this.targetOs = targetOs ? targetOs : this.hostOs;
-    this.targetCpu = targetCpu ? targetCpu : this.hostCpu;
-
-    this.outDir = path.join(this.rootDir, 'out',
-                            this.targetOs + '_' + this.targetCpu + '_' + this.buildType);
-
-
-    this.gnArgs = 'is_debug=' + (this.buildType == 'debug').toString();
-    if (extraGnArgs) this.gnArgs += ' ' + extraGnArgs;
-
-    // Handel logger
-    const logFilename = new Date().toISOString().substring(0, 10);
-    this.logFile = path.join(os.tmpdir(), 'chromium-' + logFilename + '.log');
-
-    this.logger = winston.createLogger({
-      level: logLevel,
-      format: winston.format.simple(),
-      transports: [
-        new winston.transports.Console({
-          colorize: true,
-        }),
-        new winston.transports.File({
-          filename: this.logFile,
-       }),
-      ],
-    });
+  constructor(conf) {
+    this.conf_ = conf;
+    this.supportedActions_ = ['sync', 'config', 'build', 'package', 'upload', 'all'];
   }
 
   /**
-   * Check sub-command is supported or not.
-   * @return {boolean} sub-command is supported.
+   * return {string} supported actions.
    */
-  isSupportedSubCommand() {
-    return this.supportedSubCommands.includes(this.subCommand);
+  get supportedActions() {
+    return this.supportedActions_.toString();
   }
 
   /**
-   * Validate Chromium source dir.
-   * @return {boolean} whether is Chromium source dir.
+   * Run command.
+   * @param {string} action command.
    */
-  validateRootDir() {
-    try {
-      fs.accessSync(this.rootDir);
-      fs.accessSync(path.resolve(this.rootDir, 'chrome', 'VERSION'));
-    } catch (e) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Run sub-command.
-   */
-  run() {
-    switch (this.subCommand) {
+  run(action) {
+    switch (action) {
       case 'sync':
-        this.gclientSync();
+        this.actionSync();
         break;
       case 'config':
-        this.runGN();
+        this.actionGn();
         break;
       case 'build':
-        this.ninjaBuild();
+        this.actionBuild();
         break;
       case 'package':
-        this.runPackage();
+        this.actionPackage();
         break;
       case 'upload':
-        this.runUpload();
+        this.actionUpload();
         break;
+      case 'all':
+        this.actionSync();
+        this.actionGn();
+        this.actionBuild();
+        this.actionPackage();
+        this.actionUpload();
+        break;
+      default:
+        this.conf_.logger.error('Unsupported action %s', action);
     }
   }
 
   /**
-   * Run 'sync' sub-command
+   * Run 'gclient sync' command
    */
-  gclientSync() {
-    this.execCommand('gclient', ['sync'], this.rootDir);
+  actionSync() {
+    this.execCommand('gclient', ['sync'], this.conf_.rootDir);
   }
 
   /**
-   * Run 'config' sub-command
+   * Run 'gn gen' command
    */
-  runGN() {
-    this.execCommand('gn', ['gen', `--args=${this.gnArgs}`, this.outDir], this.rootDir);
+  actionGn() {
+    this.execCommand('gn',
+                     ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir],
+                     this.conf_.rootDir);
   }
 
   /**
-   * Run 'build' sub-command
+   * Run 'ninja -C' command
    */
-  ninjaBuild() {
+  actionBuild() {
     let target = 'chrome';
-    if (this.targetOs === 'android') {
+    if (this.conf_.targetOs === 'android') {
       target = 'chrome_public_apk';
     }
 
-    this.execCommand('ninja', ['-C', this.outDir, target], this.rootDir);
+    this.execCommand('ninja', ['-C', this.conf_.outDir, target], this.conf_.rootDir);
   }
 
   /**
-   * Run 'package' sub-command
+   * Run 'package' command
    */
-  runPackage() {
+  actionPackage() {
 
   }
 
   /**
-   * Run 'upload' sub-command
+   * Run 'upload' command
    */
-  runUpload() {
+  actionUpload() {
 
   }
 
@@ -161,19 +110,19 @@ class ChromeBuilder {
     chdir(workingDir, () => {
       const cmdFullStr = cmd + ' ' + args.join(' ');
       const start = new Date();
-      this.logger.info('Execution start at ' + start.toString() +
-                       '\n  Command: ' + cmdFullStr +
-                       '\n  Working Dir: ' + workingDir +
-                       '\n  Logging File: ' + this.logFile);
+      this.conf_.logger.info('Execution start at ' + start.toString() +
+                              '\n  Command: ' + cmdFullStr +
+                              '\n  Working Dir: ' + workingDir +
+                              '\n  Logging File: ' + this.conf_.logFile);
 
       const exec = spawn(cmd, [...args]);
 
       exec.stdout.on('data', (data) => {
-        this.logger.info(data.toString());
+        this.conf_.logger.info(data.toString());
       });
 
       exec.stderr.on('data', (data) => {
-        this.logger.error(data.toString());
+        this.conf_.logger.error(data.toString());
       });
 
       exec.on('close', (code) => {
@@ -181,60 +130,12 @@ class ChromeBuilder {
         const outputStr = 'Execution stop at ' + stop.toString() +
                           '\n  Exit code: ' + code.toString() + ' in ' + (stop - start) + ' ms';
         if (code != '0') {
-          this.logger.error(outputStr);
+          this.conf_.logger.error(outputStr);
         } else {
-          this.logger.info(outputStr);
+          this.conf_.logger.info(outputStr);
         }
       });
     });
-  }
-
-  /**
-   * Get hosted OS string.
-   * @return {string} hosted OS.
-   */
-  getHostOs() {
-    let hostOs = os.platform();
-    switch (hostOs) {
-      case 'linux':
-        return 'linux';
-      case 'win32':
-        return 'win';
-      case 'darwin':
-        return 'mac';
-      case 'aix':
-      case 'freebsd':
-      case 'openbsd':
-      case 'sunos':
-        return 'linux';
-    }
-  }
-
-  /**
-   * Get hosted CPU string.
-   * @return {string} hosted CPU.
-   */
-  getHostCpu() {
-    let hostCpu = os.arch();
-    switch (hostCpu) {
-      case 'arm':
-      case 'arm64':
-      case 'mipsel':
-      case 'x64':
-        break;
-      case 'ia32':
-        hostCpu = 'x86';
-        break;
-      case 'mips':
-      case 'ppc':
-      case 'ppc64':
-      case 's390':
-      case 's390x':
-      case 'x32':
-        this.logger.error(`Unsuppurted arch: ${hostCpu}`);
-    }
-
-    return hostCpu;
   }
 }
 

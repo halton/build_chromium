@@ -1,0 +1,18 @@
+{
+  "target-os": "",
+  "target-cpu": "",
+  "gnArgs": {
+    "is-debug": false,
+    "is-component": false,
+    "extra": ""
+  },
+  "logging": {
+    "level": "",
+    "file": ""
+  },
+  "archive-server": {
+    "host": "",
+    "dir": "",
+    "ssh-user": ""
+  }
+}

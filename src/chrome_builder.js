@@ -6,7 +6,7 @@
 const chdir = require('chdir');
 const fs = require('fs');
 const path = require('path');
-const {spawn} = require('child_process');
+const {spawn, spawnSync} = require('child_process');
 
 /**
  * Chrome builder class.
@@ -116,14 +116,15 @@ class ChromeBuilder {
     let remoteSshHost = this.conf_.archiveServer.sshUser + '@' + this.conf_.archiveServer.host;
     let remoteDir = path.join(this.conf_.archiveServer.dir, this.conf_.today);
     let remoteSshDir = remoteSshHost + ':' + remoteDir + '/';
-    this.conf_.logger.debug('Remote SSH Dir: ' + remoteSshDir);
+
     // create remote dir
-    this.execCommand('ssh',
-                     [
-                      remoteSshHost,
-                      'mkdir', '-p', remoteDir,
-                     ],
-                     this.conf_.rootDir);
+    this.conf_.logger.debug('Creat remote SSH Dir: ' + remoteSshDir);
+    let mkdir = spawnSync('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
+    if (mkdir.status != 0 ) {
+      this.conf_.logger.error(mkdir.error);
+      return;
+    }
+
     // upload achive file and log file
     this.execCommand('scp',
                      [
@@ -137,6 +138,7 @@ class ChromeBuilder {
                       remoteSshDir,
                      ],
                      this.conf_.rootDir);
+
     // update latest link
     this.execCommand('ssh',
                      [

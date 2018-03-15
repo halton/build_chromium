@@ -11,17 +11,17 @@ const {ChromeBuilderConf} = require('../src/chrome_builder_conf');
 
 program
   .version(require('../package.json').version)
-  // TODO(halton): show supported actions
-  .usage('[options] action <dir>')
+  .usage('[options] <dir>')
+  .option('-a --action <action>', 'Action', /^(sync|config|build|package|upload|all)$/i, 'all')
   .option('-c, --conf <conf>', 'Configuration file', '.bot_config.json')
   .parse(process.argv);
 
 try {
-  let conf = new ChromeBuilderConf(program.args[1], program.conf);
+  let conf = new ChromeBuilderConf(program.args[0], program.conf);
   conf.init();
 
   let builder = new ChromeBuilder(conf);
-  builder.run(program.args[0]);
+  builder.run(program.action);
 } catch (e) {
   console.log(e);
   process.exit(1);

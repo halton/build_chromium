@@ -77,9 +77,9 @@ class ChromeBuilderConf {
     this.archiveServer_.sshUser = conf['archive-server']['ssh-user'];
     // Handel logger
     this.logLevel_ = conf['logging']['level'] || 'info';
+    this.today_ = new Date().toISOString().substring(0, 10);
     this.logFile_ = conf['logging']['file'] ||
-                    path.join(os.tmpdir(),
-                              'chromium-' + new Date().toISOString().substring(0, 10) + '.log');
+        path.join(os.tmpdir(), 'chromium-' + this.today_ + '.log');
     /* jshint ignore:end */
 
     this.logger_ = winston.createLogger({
@@ -105,6 +105,13 @@ class ChromeBuilderConf {
     this.logger_.debug('archive ssh user: ' + this.archiveServer_.sshUser);
 
     return true;
+  }
+
+  /**
+   * @return {string} configuration file.
+   */
+  get confFile() {
+    return this.conf_;
   }
 
   /**
@@ -146,6 +153,24 @@ class ChromeBuilderConf {
     if (this.gnArgs_.extra) this.gnArgs_ += ' ' + (this.gnArgs_.extra);
 
     return args;
+  }
+
+  /**
+   * @return {string} of today.
+   */
+  get today() {
+    return this.today_;
+  }
+  /**
+   * @return {string} path of package file.
+   */
+  get packagedFile() {
+    switch (this.targetOs) {
+      case 'android':
+        return path.join(this.outDir_, 'apks', 'ChromePublic.apk');
+      default:
+        return null;
+    }
   }
 
   /**

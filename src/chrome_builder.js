@@ -4,6 +4,8 @@
 'use strict';
 
 const chdir = require('chdir');
+const fs = require('fs');
+const path = require('path');
 const {spawn} = require('child_process');
 
 /**
@@ -97,7 +99,53 @@ class ChromeBuilder {
    * Run 'upload' command
    */
   actionUpload() {
+    if (!this.conf_.archiveServer.host ||
+        !this.conf_.archiveServer.dir ||
+        !this.conf_.archiveServer.sshUser) {
+      this.conf_.logger.info('Insufficient archive-server given in ' + this.conf_.confFile);
+      return;
+    }
 
+    try {
+      fs.accessSync(this.conf_.packagedFile);
+    } catch (e) {
+      this.conf_.logger.error('Fail to access ' + this.conf_.packagedFile);
+      return;
+    }
+
+    let remoteSshHost = this.conf_.archiveServer.sshUser + '@' + this.conf_.archiveServer.host;
+    let remoteDir = path.join(this.conf_.archiveServer.dir, this.conf_.today);
+    let remoteSshDir = remoteSshHost + ':' + remoteDir + '/';
+    this.conf_.logger.debug('Remote SSH Dir: ' + remoteSshDir);
+    // create remote dir
+    this.execCommand('ssh',
+                     [
+                      remoteSshHost,
+                      'mkdir', '-p', remoteDir,
+                     ],
+                     this.conf_.rootDir);
+    // upload achive file and log file
+    this.execCommand('scp',
+                     [
+                      this.conf_.packagedFile,
+                      remoteSshDir,
+                     ],
+                     this.conf_.rootDir);
+    this.execCommand('scp',
+                     [
+                      this.conf_.logFile,
+                      remoteSshDir,
+                     ],
+                     this.conf_.rootDir);
+    // update latest link
+    this.execCommand('ssh',
+                     [
+                      remoteSshHost,
+                      'cd', remoteDir + '/..;',
+                      'rm', 'latest;',
+                      'ln', '-s', this.conf_.today, 'latest',
+                     ],
+                     this.conf_.rootDir);
   }
 
   /**
@@ -110,10 +158,6 @@ class ChromeBuilder {
     chdir(workingDir, () => {
       const cmdFullStr = cmd + ' ' + args.join(' ');
       const start = new Date();
-      this.conf_.logger.info('Execution start at ' + start.toString() +
-                              '\n  Command: ' + cmdFullStr +
-                              '\n  Working Dir: ' + workingDir +
-                              '\n  Logging File: ' + this.conf_.logFile);
 
       const exec = spawn(cmd, [...args]);
 
@@ -128,11 +172,14 @@ class ChromeBuilder {
       exec.on('close', (code) => {
         const stop = new Date();
         const outputStr = 'Execution stop at ' + stop.toString() +
+                          '\n  Command: ' + cmdFullStr +
+                          '\n  Working Dir: ' + workingDir +
+                          '\n  Logging File: ' + this.conf_.logFile +
                           '\n  Exit code: ' + code.toString() + ' in ' + (stop - start) + ' ms';
         if (code != '0') {
           this.conf_.logger.error(outputStr);
         } else {
-          this.conf_.logger.info(outputStr);
+          this.conf_.logger.debug(outputStr);
         }
       });
     });

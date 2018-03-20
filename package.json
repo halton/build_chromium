@@ -1,13 +1,15 @@
 {
   "name": "build_chromium",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Build and package Chromium toolchain.",
   "main": "index.js",
   "scripts": {
     "linter": "node tools/linter.js"
   },
   "bin": "./bin/build_chromium",
-  "pre-commit": [ "linter" ],
+  "pre-commit": [
+    "linter"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/halton/build_chromium.git"

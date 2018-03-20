@@ -114,7 +114,8 @@ class ChromeBuilder {
     }
 
     let remoteSshHost = this.conf_.archiveServer.sshUser + '@' + this.conf_.archiveServer.host;
-    let remoteDir = path.join(this.conf_.archiveServer.dir, this.conf_.today);
+    let remoteDir = path.join(this.conf_.archiveServer.dir, this.conf_.today,
+                              this.conf_.targetOs + '_' + this.conf_.targetCpu);
     let remoteSshDir = remoteSshHost + ':' + remoteDir + '/';
 
     // create remote dir

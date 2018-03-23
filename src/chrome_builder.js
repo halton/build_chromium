@@ -30,7 +30,8 @@ class ChromeBuilder {
    * Run command.
    * @param {string} action command.
    */
-  run(action) {
+  async run(action) {
+    this.conf_.logger.debug('Action: ' + action);
     switch (action) {
       case 'sync':
         this.actionSync();
@@ -48,11 +49,11 @@ class ChromeBuilder {
         this.actionUpload();
         break;
       case 'all':
-        this.actionSync();
-        this.actionGn();
-        this.actionBuild();
-        this.actionPackage();
-        this.actionUpload();
+        await this.actionSync();
+        await this.actionGn();
+        await this.actionBuild();
+        await this.actionPackage();
+        await this.actionUpload();
         break;
       default:
         this.conf_.logger.error('Unsupported action %s', action);
@@ -64,6 +65,7 @@ class ChromeBuilder {
    * Run 'gclient sync' command
    */
   async actionSync() {
+    this.conf_.logger.info('Action sync');
     await this.childCommand('gclient', ['sync']);
   }
 
@@ -71,6 +73,7 @@ class ChromeBuilder {
    * Run 'gn gen' command
    */
   async actionGn() {
+    this.conf_.logger.info('Action config');
     await this.childCommand('gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
   }
 
@@ -78,6 +81,8 @@ class ChromeBuilder {
    * Run 'ninja -C' command
    */
   async actionBuild() {
+    this.conf_.logger.info('Action build');
+
     let target = 'chrome';
     if (this.conf_.targetOs === 'android') {
       target = 'chrome_public_apk';
@@ -90,13 +95,15 @@ class ChromeBuilder {
    * Run 'package' command
    */
   actionPackage() {
-
+    this.conf_.logger.info('Action package');
   }
 
   /**
    * Run 'upload' command
    */
   async actionUpload() {
+    this.conf_.logger.info('Action upload');
+
     if (!this.conf_.archiveServer.host ||
         !this.conf_.archiveServer.dir ||
         !this.conf_.archiveServer.sshUser) {

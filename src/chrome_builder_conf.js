@@ -96,6 +96,10 @@ class ChromeBuilderConf {
        }),
       ],
     });
+
+    // FIXME(halton): create logfile is does not exist
+    fs.writeFileSync(this.logFile_, '', {flag: 'w+'});
+
     this.logger_.debug('root dir: ' + this.rootDir_);
     this.logger_.debug('out dir: ' + this.outDir_);
     this.logger_.debug('target OS: ' + this.targetOs_);

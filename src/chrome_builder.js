@@ -3,10 +3,9 @@
 
 'use strict';
 
-const chdir = require('chdir');
 const fs = require('fs');
 const path = require('path');
-const {spawn, spawnSync} = require('child_process');
+const {spawn} = require('child_process');
 
 /**
  * Chrome builder class.
@@ -57,34 +56,34 @@ class ChromeBuilder {
         break;
       default:
         this.conf_.logger.error('Unsupported action %s', action);
+        process.exit(1);
     }
   }
 
   /**
    * Run 'gclient sync' command
    */
-  actionSync() {
-    this.execCommandSync('gclient', ['sync']);
+  async actionSync() {
+    await this.childCommand('gclient', ['sync']);
   }
 
   /**
    * Run 'gn gen' command
    */
-  actionGn() {
-    this.execCommandSync('gn',
-                         ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
+  async actionGn() {
+    await this.childCommand('gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
   }
 
   /**
    * Run 'ninja -C' command
    */
-  actionBuild() {
+  async actionBuild() {
     let target = 'chrome';
     if (this.conf_.targetOs === 'android') {
       target = 'chrome_public_apk';
     }
 
-    this.execCommandSync('ninja', ['-C', this.conf_.outDir, target]);
+    await this.childCommand('ninja', ['-C', this.conf_.outDir, target]);
   }
 
   /**
@@ -97,7 +96,7 @@ class ChromeBuilder {
   /**
    * Run 'upload' command
    */
-  actionUpload() {
+  async actionUpload() {
     if (!this.conf_.archiveServer.host ||
         !this.conf_.archiveServer.dir ||
         !this.conf_.archiveServer.sshUser) {
@@ -118,66 +117,43 @@ class ChromeBuilder {
     let remoteSshDir = remoteSshHost + ':' + remoteDir + '/';
 
     // create remote dir
-    this.conf_.logger.debug('Creat remote SSH Dir: ' + remoteSshDir);
-    this.execCommandSync('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
+    await this.childCommand('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
 
     // upload achive file and log file
-    this.execCommandSync('scp', [this.conf_.packagedFile, remoteSshDir]);
-    this.execCommandSync('scp', [this.conf_.logFile, remoteSshDir]);
-  }
+    await this.childCommand('scp', [this.conf_.packagedFile, remoteSshDir]);
 
-  /**
-   * Execute sync command under rootDir
-   * @param {string} cmd command string.
-   * @param {array} args arguments array.
-   * @param {string} workingDir working directory.
-   */
-  execCommandSync(cmd, args) {
-    chdir(this.conf_.rootDir, () => {
-      const cmdFullStr = cmd + ' ' + args.join(' ');
-      this.conf_.logger.debug('Execute command: ' + cmdFullStr);
-      let c = spawnSync(cmd, [...args], {stdio: 'inherit'});
-
-      if (c.status != '0' ) {
-        this.conf_.logger.error(c.error);
-        process.exit(1);
-      }
-    });
+    await this.childCommand('scp', [this.conf_.logFile, remoteSshDir]);
   }
 
   /**
    * Execute command.
    * @param {string} cmd command string.
    * @param {array} args arguments array.
-   * @param {string} workingDir working directory.
+   * @return {object} child_process.spawn promise.
    */
-  execCommand(cmd, args, workingDir) {
-    chdir(workingDir, () => {
+  childCommand(cmd, args) {
+    return new Promise((resolve, reject) => {
       const cmdFullStr = cmd + ' ' + args.join(' ');
-      const start = new Date();
+      this.conf_.logger.info('Execute command: ' + cmdFullStr);
 
-      const exec = spawn(cmd, [...args]);
+      const child = spawn(cmd, [...args], {cwd: this.conf_.rootDir});
 
-      exec.stdout.on('data', (data) => {
-        this.conf_.logger.info(data.toString());
+      child.stdout.on('data', (data) => {
+        this.conf_.logger.debug(data.toString());
       });
 
-      exec.stderr.on('data', (data) => {
+      child.stderr.on('data', (data) => {
         this.conf_.logger.error(data.toString());
+        reject();
       });
 
-      exec.on('close', (code) => {
-        const stop = new Date();
-        const outputStr = 'Execution stop at ' + stop.toString() +
-                          '\n  Command: ' + cmdFullStr +
-                          '\n  Working Dir: ' + workingDir +
-                          '\n  Logging File: ' + this.conf_.logFile +
-                          '\n  Exit code: ' + code.toString() + ' in ' + (stop - start) + ' ms';
-        if (code != '0') {
-          this.conf_.logger.error(outputStr);
-        } else {
-          this.conf_.logger.debug(outputStr);
+      child.on('close', (code) => {
+        if (code !== 0) {
+          this.conf_.logger.error('FAILED.');
+          process.exit(1);
         }
+        this.conf_.logger.info('SUCCEED.');
+        resolve(code);
       });
     });
   }

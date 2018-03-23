@@ -47,7 +47,7 @@ function doJsLint(files) {
 
   let jsLinterDir = path.join(__dirname, '..', 'node_modules', '.bin');
 
-  for (let linter of ['eslint', 'jshint']) {
+  for (let linter of ['eslint']) {
     let output = null;
     if (os.platform() == 'win32') {
       output = spawn(path.join(jsLinterDir, linter + '.cmd'), files).stdout.toString();

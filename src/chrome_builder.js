@@ -64,16 +64,15 @@ class ChromeBuilder {
    * Run 'gclient sync' command
    */
   actionSync() {
-    this.execCommand('gclient', ['sync'], this.conf_.rootDir);
+    this.execCommandSync('gclient', ['sync']);
   }
 
   /**
    * Run 'gn gen' command
    */
   actionGn() {
-    this.execCommand('gn',
-                     ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir],
-                     this.conf_.rootDir);
+    this.execCommandSync('gn',
+                         ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
   }
 
   /**
@@ -85,7 +84,7 @@ class ChromeBuilder {
       target = 'chrome_public_apk';
     }
 
-    this.execCommand('ninja', ['-C', this.conf_.outDir, target], this.conf_.rootDir);
+    this.execCommandSync('ninja', ['-C', this.conf_.outDir, target]);
   }
 
   /**
@@ -120,35 +119,38 @@ class ChromeBuilder {
 
     // create remote dir
     this.conf_.logger.debug('Creat remote SSH Dir: ' + remoteSshDir);
-    let mkdir = spawnSync('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
-    if (mkdir.status != 0 ) {
-      this.conf_.logger.error(mkdir.error);
-      return;
-    }
+    this.execCommandSync('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
 
     // upload achive file and log file
-    this.execCommand('scp',
-                     [
-                      this.conf_.packagedFile,
-                      remoteSshDir,
-                     ],
-                     this.conf_.rootDir);
-    this.execCommand('scp',
-                     [
-                      this.conf_.logFile,
-                      remoteSshDir,
-                     ],
-                     this.conf_.rootDir);
+    this.execCommandSync('scp', [this.conf_.packagedFile, remoteSshDir]);
+    this.execCommandSync('scp', [this.conf_.logFile, remoteSshDir]);
 
     // update latest link
-    this.execCommand('ssh',
-                     [
-                      remoteSshHost,
-                      'cd', remoteDir + '/..;',
-                      'rm', 'latest;',
-                      'ln', '-s', this.conf_.today, 'latest',
-                     ],
-                     this.conf_.rootDir);
+    this.execCommandSync('ssh',
+        [remoteSshHost,
+         'cd', remoteDir + '/..;',
+         'rm', 'latest;',
+         'ln', '-s', this.conf_.today, 'latest',
+        ]);
+  }
+
+  /**
+   * Execute sync command under rootDir
+   * @param {string} cmd command string.
+   * @param {array} args arguments array.
+   * @param {string} workingDir working directory.
+   */
+  execCommandSync(cmd, args) {
+    chdir(this.conf_.rootDir, () => {
+      const cmdFullStr = cmd + ' ' + args.join(' ');
+      this.conf_.logger.debug('Execute command: ' + cmdFullStr);
+      let c = spawnSync(cmd, [...args], {stdio: 'inherit'});
+
+      if (c.status != '0' ) {
+        this.conf_.logger.error(c.error);
+        process.exit(1);
+      }
+    });
   }
 
   /**

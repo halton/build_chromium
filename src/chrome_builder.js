@@ -124,14 +124,6 @@ class ChromeBuilder {
     // upload achive file and log file
     this.execCommandSync('scp', [this.conf_.packagedFile, remoteSshDir]);
     this.execCommandSync('scp', [this.conf_.logFile, remoteSshDir]);
-
-    // update latest link
-    this.execCommandSync('ssh',
-        [remoteSshHost,
-         'cd', remoteDir + '/..;',
-         'rm', 'latest;',
-         'ln', '-s', this.conf_.today, 'latest',
-        ]);
   }
 
   /**

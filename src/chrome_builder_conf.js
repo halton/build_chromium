@@ -79,7 +79,9 @@ class ChromeBuilderConf {
     this.logLevel_ = conf['logging']['level'] || 'info';
     this.today_ = new Date().toISOString().substring(0, 10);
     this.logFile_ = conf['logging']['file'] ||
-        path.join(os.tmpdir(), 'chromium-' + this.today_ + '.log');
+        path.join(os.tmpdir(),
+        'chromium_' + this.targetOs_ + '_' + this.targetCpu_ + '_' +
+        this.today_ + '.log');
     /* jshint ignore:end */
 
     this.logger_ = winston.createLogger({

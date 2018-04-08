@@ -17,6 +17,31 @@ class ChromeBuilder {
   constructor(conf) {
     this.conf_ = conf;
     this.supportedActions_ = ['sync', 'config', 'build', 'package', 'upload', 'all'];
+
+    // Get last sucessful changeset
+    this.lastSucceedChangesetFile_ = path.join(this.conf_.outDir, 'SUCCEED');
+    this.lastSucceedChangeset_ = null;
+    this.latestChangeset_ = null;
+    try {
+      this.lastSucceedChangeset_ = fs.readFileSync(this.lastSucceedChangesetFile_, 'utf8');
+      this.conf_.logger.debug(`Last sucessful build changeset is ${this.lastSucceedChangeset_}`);
+    } catch (e) {
+      this.conf_.logger.info('Not found last sucessful build.');
+    }
+
+    // Upload server
+    this.remoteSshHost_ = null;
+    this.remoteDir_ = null;
+    this.remoteSshDir_ = null;
+
+    if (!this.conf_.archiveServer.host ||
+        !this.conf_.archiveServer.dir ||
+        !this.conf_.archiveServer.sshUser) {
+      this.conf_.logger.info('Insufficient archive-server given in ' + this.conf_.confFile);
+      return;
+    }
+
+    this.remoteSshHost_ = this.conf_.archiveServer.sshUser + '@' + this.conf_.archiveServer.host;
   }
 
   /**
@@ -32,21 +57,23 @@ class ChromeBuilder {
    */
   async run(action) {
     this.conf_.logger.debug('Action: ' + action);
+    await this.updateChangeset();
     switch (action) {
       case 'sync':
-        this.actionSync();
+        await this.actionSync();
+        await this.updateChangeset();
         break;
       case 'config':
-        this.actionGn();
+        await this.actionGn();
         break;
       case 'build':
-        this.actionBuild();
+        await this.actionBuild();
         break;
       case 'package':
-        this.actionPackage();
+        await this.actionPackage();
         break;
       case 'upload':
-        this.actionUpload();
+        await this.actionUpload();
         break;
       case 'all':
         await this.actionSync();
@@ -83,12 +110,27 @@ class ChromeBuilder {
   async actionBuild() {
     this.conf_.logger.info('Action build');
 
+    if (this.lastSucceedChangeset_ === this.latestChangeset_) {
+      this.conf_.logger.info('No change since last sucessful build, skip this time.');
+      return;
+    }
+
+    try {
+      fs.unlinkSync(this.lastSucceedChangesetFile_);
+    } catch (e) {
+      this.conf_.logger.error(e);
+    }
+
     let target = 'chrome';
     if (this.conf_.targetOs === 'android') {
       target = 'chrome_public_apk';
     }
 
-    await this.childCommand('ninja', ['-C', this.conf_.outDir, target]);
+    let obj = {};
+    await this.childCommand('ninja', ['-C', this.conf_.outDir, target], obj);
+    if (obj.success) {
+      fs.writeFileSync(this.lastSucceedChangesetFile_, this.latestChangeset_);
+    }
   }
 
   /**
@@ -103,42 +145,77 @@ class ChromeBuilder {
    */
   async actionUpload() {
     this.conf_.logger.info('Action upload');
+    if (!this.remoteSshHost_) return;
 
-    if (!this.conf_.archiveServer.host ||
-        !this.conf_.archiveServer.dir ||
-        !this.conf_.archiveServer.sshUser) {
-      this.conf_.logger.info('Insufficient archive-server given in ' + this.conf_.confFile);
+    if (this.lastSucceedChangeset_ === this.latestChangeset_) {
+      this.conf_.logger.info('No change since last sucessful build, skip this time.');
       return;
     }
 
+    await this.makeRemoteDir();
     try {
       fs.accessSync(this.conf_.packagedFile);
     } catch (e) {
       this.conf_.logger.error('Fail to access ' + this.conf_.packagedFile);
       return;
     }
+    await this.childCommand('scp', [this.conf_.packagedFile, this.remoteSshDir_]);
 
-    let remoteSshHost = this.conf_.archiveServer.sshUser + '@' + this.conf_.archiveServer.host;
-    let remoteDir = path.join(this.conf_.archiveServer.dir, this.conf_.today,
-                              this.conf_.targetOs + '_' + this.conf_.targetCpu);
-    let remoteSshDir = remoteSshHost + ':' + remoteDir + '/';
+    await this.uploadLogfile();
+  }
 
-    // create remote dir
-    await this.childCommand('ssh', [remoteSshHost, 'mkdir', '-p', remoteDir]);
+  /**
+   * Get latest changeset
+   */
+  async updateChangeset() {
+    let obj = {};
+    await this.childCommand('git', ['rev-parse', 'HEAD'], obj);
+    this.latestChangeset_ = obj.changeset;
+    this.conf_.logger.info(`HEAD is at ${this.latestChangeset_}`);
+  }
 
-    // upload achive file and log file
-    await this.childCommand('scp', [this.conf_.packagedFile, remoteSshDir]);
+  /**
+   * Create remote directory
+   */
+  async makeRemoteDir() {
+    if (!this.remoteSshHost_) return;
 
-    await this.childCommand('scp', [this.conf_.logFile, remoteSshDir]);
+    this.remoteDir_ = path.join(this.conf_.archiveServer.dir,
+                                this.conf_.today + '_' + this.latestChangeset_.substring(0, 7),
+                                this.conf_.targetOs + '_' + this.conf_.targetCpu);
+    let success = false;
+    try {
+      fs.accessSync(this.lastSucceedChangesetFile_);
+      success = true;
+    } catch (e) {
+      success = false;
+      this.conf_.logger.info('Not found last sucessful build.');
+    }
+    this.remoteDir_ += success ? '_SUCCEED': '_FAILED';
+    this.remoteSshDir_ = this.remoteSshHost_ + ':' + this.remoteDir_ + '/';
+
+    await this.childCommand('ssh', [this.remoteSshHost_, 'mkdir', '-p', this.remoteDir_]);
+  }
+
+  /**
+   * Upload log file
+   */
+  async uploadLogfile() {
+    if (!this.remoteSshHost_) return;
+
+    this.conf_.logger.info('Halton upload log file');
+    await this.makeRemoteDir();
+    await this.childCommand('scp', [this.conf_.logFile, this.remoteSshDir_]);
   }
 
   /**
    * Execute command.
    * @param {string} cmd command string.
    * @param {array} args arguments array.
+   * @param {object} result return value.
    * @return {object} child_process.spawn promise.
    */
-  childCommand(cmd, args) {
+  childCommand(cmd, args, result) {
     return new Promise((resolve, reject) => {
       const cmdFullStr = cmd + ' ' + args.join(' ');
       this.conf_.logger.info('Execute command: ' + cmdFullStr);
@@ -146,7 +223,8 @@ class ChromeBuilder {
       const child = spawn(cmd, [...args], {cwd: this.conf_.rootDir});
 
       child.stdout.on('data', (data) => {
-        this.conf_.logger.debug(data.toString());
+        if (result) result.changeset = data.toString();
+        this.conf_.logger.debug(`${data.toString()}`);
       });
 
       child.stderr.on('data', (data) => {
@@ -157,8 +235,11 @@ class ChromeBuilder {
       child.on('close', (code) => {
         if (code !== 0) {
           this.conf_.logger.error('FAILED.');
+          if (result) result.success = false;
+          this.uploadLogfile();
           process.exit(1);
         }
+        if (result) result.success = true;
         this.conf_.logger.info('SUCCEED.');
         resolve(code);
       });

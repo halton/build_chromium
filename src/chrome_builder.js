@@ -131,14 +131,7 @@ class ChromeBuilder {
   async actionBuild() {
     this.conf_.logger.info('Action build');
 
-    let target = 'chrome';
-    if (this.conf_.targetOs === 'android') {
-      target = 'chrome_public_apk';
-    }
-
     // Remove SUCCESS file if changeset different
-    // this.conf_.logger.info(this.lastSucceedChangeset_);
-    // this.conf_.logger.info(this.latestChangeset_);
     if (this.lastSucceedChangeset_ !== this.latestChangeset_) {
       try {
         fs.unlinkSync(this.lastSucceedChangesetFile_);
@@ -148,7 +141,7 @@ class ChromeBuilder {
       }
     }
 
-    await this.childCommand('ninja', ['-C', this.conf_.outDir, target]);
+    await this.childCommand('ninja', ['-C', this.conf_.outDir, this.conf_.buildTarget]);
     if (!this.childResult_.success) {
       await this.uploadLogfile();
       process.exit(1);

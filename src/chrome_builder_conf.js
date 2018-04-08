@@ -6,6 +6,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const {spawnSync} = require('child_process');
 const winston = require('winston');
 
 /**
@@ -167,13 +168,48 @@ class ChromeBuilderConf {
   get today() {
     return this.today_;
   }
+
+  /**
+   * @return {string} of build target.
+   */
+  get buildTarget() {
+    switch (this.targetOs) {
+      case 'android':
+        return 'chrome_public_apk';
+      case 'linux':
+        return 'unstable_deb';
+      case 'mac':
+        return 'mac_installer_app';
+      default:
+        return null;
+    }
+  }
+
   /**
    * @return {string} path of package file.
    */
   get packagedFile() {
+    let installer = null;
     switch (this.targetOs) {
       case 'android':
         return path.join(this.outDir_, 'apks', 'ChromePublic.apk');
+      case 'linux':
+        // TODO(halton): Run gn desc <out_dir> //chrome/installer/linux:unstable_deb outputs
+        // to get below string
+        installer = '//out/linux_x64_release/chromium-browser-unstable_65.0.3324.0-1_amd64.deb';
+        return path.join(this.outDir_, installer.split('/')[4]);
+      case 'mac':
+        // TODO(halton): Run gn desc <out_dir> //chrome/installer/mac/app:mac_installer_app outputs
+        // to get below string output //out/mac_x64_release/Chromium Installer.app,
+        // then use hdiutil to create a dmg
+        installer = 'Chromium.dmg';
+        spawnSync('hdiutil',
+                  ['create', '-fs', 'HFS+',
+                   '-srcfolder', 'Chromium Installer.app',
+                   '-volname', 'Chromium',
+                   installer],
+                  {cwd: this.outDir});
+        return path.join(this.outDir_, installer);
       default:
         return null;
     }

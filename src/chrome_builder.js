@@ -29,6 +29,8 @@ class ChromeBuilder {
       this.conf_.logger.info('Not found last sucessful build.');
     }
 
+    this.childResult_ = {};
+
     // Upload server
     this.remoteSshHost_ = null;
     this.remoteDir_ = null;
@@ -58,6 +60,14 @@ class ChromeBuilder {
   async run(action) {
     this.conf_.logger.debug('Action: ' + action);
     await this.updateChangeset();
+
+    // skip if sync action is not include and changesets are same
+    if ((action !== 'sync' || action !== 'all') &&
+        (this.lastSucceedChangeset_ === this.latestChangeset_)) {
+      this.conf_.logger.info('No change since last sucessful build, skip this time.');
+      return;
+    }
+
     switch (action) {
       case 'sync':
         await this.actionSync();
@@ -93,7 +103,13 @@ class ChromeBuilder {
    */
   async actionSync() {
     this.conf_.logger.info('Action sync');
+
     await this.childCommand('gclient', ['sync']);
+
+    if (!this.childResult_.success) {
+      await this.uploadLogfile();
+      process.exit(1);
+    }
   }
 
   /**
@@ -102,6 +118,11 @@ class ChromeBuilder {
   async actionGn() {
     this.conf_.logger.info('Action config');
     await this.childCommand('gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
+
+    if (!this.childResult_.success) {
+      await this.uploadLogfile();
+      process.exit(1);
+    }
   }
 
   /**
@@ -110,25 +131,28 @@ class ChromeBuilder {
   async actionBuild() {
     this.conf_.logger.info('Action build');
 
-    if (this.lastSucceedChangeset_ === this.latestChangeset_) {
-      this.conf_.logger.info('No change since last sucessful build, skip this time.');
-      return;
-    }
-
-    try {
-      fs.unlinkSync(this.lastSucceedChangesetFile_);
-    } catch (e) {
-      this.conf_.logger.error(e);
-    }
-
     let target = 'chrome';
     if (this.conf_.targetOs === 'android') {
       target = 'chrome_public_apk';
     }
 
-    let obj = {};
-    await this.childCommand('ninja', ['-C', this.conf_.outDir, target], obj);
-    if (obj.success) {
+    // Remove SUCCESS file if changeset different
+    // this.conf_.logger.info(this.lastSucceedChangeset_);
+    // this.conf_.logger.info(this.latestChangeset_);
+    if (this.lastSucceedChangeset_ !== this.latestChangeset_) {
+      try {
+        fs.unlinkSync(this.lastSucceedChangesetFile_);
+        this.lastSucceedChangeset_ = null;
+      } catch (e) {
+        this.conf_.logger.error(e);
+      }
+    }
+
+    await this.childCommand('ninja', ['-C', this.conf_.outDir, target]);
+    if (!this.childResult_.success) {
+      await this.uploadLogfile();
+      process.exit(1);
+    } else {
       fs.writeFileSync(this.lastSucceedChangesetFile_, this.latestChangeset_);
     }
   }
@@ -152,15 +176,14 @@ class ChromeBuilder {
       return;
     }
 
-    await this.makeRemoteDir();
     try {
       fs.accessSync(this.conf_.packagedFile);
     } catch (e) {
       this.conf_.logger.error('Fail to access ' + this.conf_.packagedFile);
       return;
     }
+    await this.makeRemoteDir();
     await this.childCommand('scp', [this.conf_.packagedFile, this.remoteSshDir_]);
-
     await this.uploadLogfile();
   }
 
@@ -189,7 +212,6 @@ class ChromeBuilder {
       success = true;
     } catch (e) {
       success = false;
-      this.conf_.logger.info('Not found last sucessful build.');
     }
     this.remoteDir_ += success ? '_SUCCEED': '_FAILED';
     this.remoteSshDir_ = this.remoteSshHost_ + ':' + this.remoteDir_ + '/';
@@ -203,7 +225,6 @@ class ChromeBuilder {
   async uploadLogfile() {
     if (!this.remoteSshHost_) return;
 
-    this.conf_.logger.info('Halton upload log file');
     await this.makeRemoteDir();
     await this.childCommand('scp', [this.conf_.logFile, this.remoteSshDir_]);
   }
@@ -233,14 +254,7 @@ class ChromeBuilder {
       });
 
       child.on('close', (code) => {
-        if (code !== 0) {
-          this.conf_.logger.error('FAILED.');
-          if (result) result.success = false;
-          this.uploadLogfile();
-          process.exit(1);
-        }
-        if (result) result.success = true;
-        this.conf_.logger.info('SUCCEED.');
+        this.childResult_.success = (code === 0);
         resolve(code);
       });
     });

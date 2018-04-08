@@ -197,7 +197,7 @@ class ChromeBuilder {
     if (!this.remoteSshHost_) return;
 
     this.remoteDir_ = path.join(this.conf_.archiveServer.dir,
-                                this.conf_.today + '_' + this.latestChangeset_.substring(0, 7),
+                                this.latestChangeset_.substring(0, 7),
                                 this.conf_.targetOs + '_' + this.conf_.targetCpu);
     let success = false;
     try {

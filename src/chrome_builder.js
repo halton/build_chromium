@@ -104,6 +104,7 @@ class ChromeBuilder {
   async actionSync() {
     this.conf_.logger.info('Action sync');
 
+    await this.childCommand('git', ['pull', '--rebase']);
     await this.childCommand('gclient', ['sync']);
 
     if (!this.childResult_.success) {
@@ -141,7 +142,8 @@ class ChromeBuilder {
       }
     }
 
-    await this.childCommand('ninja', ['-C', this.conf_.outDir, this.conf_.buildTarget]);
+    const args = ['-C', this.conf_.outDir];
+    await this.childCommand('ninja', args.concat(this.conf_.buildTargets));
     if (!this.childResult_.success) {
       await this.uploadLogfile();
       process.exit(1);

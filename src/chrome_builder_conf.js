@@ -170,16 +170,16 @@ class ChromeBuilderConf {
   }
 
   /**
-   * @return {string} of build target.
+   * @return {array} of build targets.
    */
-  get buildTarget() {
+  get buildTargets() {
     switch (this.targetOs) {
       case 'android':
-        return 'chrome_public_apk';
+        return ['chrome_public_apk'];
       case 'linux':
-        return 'unstable_deb';
+        return ['chrome', 'unstable_deb'];
       case 'mac':
-        return 'mac_installer_app';
+        return ['chrome', 'mac_installer_app'];
       default:
         return null;
     }

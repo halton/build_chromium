@@ -1,6 +1,6 @@
 {
   "name": "build_chromium",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "description": "Build and package Chromium toolchain.",
   "main": "index.js",
   "scripts": {

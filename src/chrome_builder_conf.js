@@ -37,6 +37,9 @@ class ChromeBuilderConf {
       extraGnArgs: undefined,
     };
 
+    // True indicate remove out dir before build
+    this.cleanBuild_ = true;
+
     // logging
     this.logFile_ = undefined;
     this.logLevel_ = undefined;
@@ -73,6 +76,7 @@ class ChromeBuilderConf {
                              this.targetOs_ + '_' + this.targetCpu_ + '_' +
                              (this.gnArgs_.isDebug ? 'debug' : 'release'));
 
+    this.cleanBuild_ = conf['clean-build'];
     this.archiveServer_.host = conf['archive-server']['host'];
     this.archiveServer_.dir = conf['archive-server']['dir'];
     this.archiveServer_.sshUser = conf['archive-server']['ssh-user'];
@@ -160,6 +164,13 @@ class ChromeBuilderConf {
     if (this.gnArgs_.extra) this.gnArgs_ += ' ' + (this.gnArgs_.extra);
 
     return args;
+  }
+
+  /**
+   * @return {boolean} of clean build.
+   */
+  get cleanBuild() {
+    return this.cleanBuild_;
   }
 
   /**

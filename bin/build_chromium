@@ -12,7 +12,7 @@ const {ChromeBuilderConf} = require('../src/chrome_builder_conf');
 program
   .version(require('../package.json').version)
   .usage('[options] <dir>')
-  .option('-a --action <action>', 'Action', /^(sync|config|build|package|upload|all)$/i, 'all')
+  .option('-a --action <action>', 'Action', /^(sync|build|package|upload|all)$/i, 'all')
   .option('-c, --conf <conf>', 'Configuration file', '.bot_config.json')
   .parse(process.argv);
 

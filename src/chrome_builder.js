@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const rimraf = require('rimraf');
 const {spawn} = require('child_process');
 
 /**
@@ -16,17 +17,19 @@ class ChromeBuilder {
    */
   constructor(conf) {
     this.conf_ = conf;
-    this.supportedActions_ = ['sync', 'config', 'build', 'package', 'upload', 'all'];
+    this.supportedActions_ = ['sync', 'build', 'package', 'upload', 'all'];
 
     // Get last sucessful changeset
     this.lastSucceedChangesetFile_ = path.join(this.conf_.outDir, 'SUCCEED');
     this.lastSucceedChangeset_ = null;
     this.latestChangeset_ = null;
-    try {
-      this.lastSucceedChangeset_ = fs.readFileSync(this.lastSucceedChangesetFile_, 'utf8');
-      this.conf_.logger.debug(`Last sucessful build changeset is ${this.lastSucceedChangeset_}`);
-    } catch (e) {
-      this.conf_.logger.info('Not found last sucessful build.');
+    if (!this.conf_.cleanBuild) {
+      try {
+        this.lastSucceedChangeset_ = fs.readFileSync(this.lastSucceedChangesetFile_, 'utf8');
+        this.conf_.logger.debug(`Last sucessful build changeset is ${this.lastSucceedChangeset_}`);
+      } catch (e) {
+        this.conf_.logger.info('Not found last sucessful build.');
+      }
     }
 
     this.childResult_ = {};
@@ -73,9 +76,6 @@ class ChromeBuilder {
         await this.actionSync();
         await this.updateChangeset();
         break;
-      case 'config':
-        await this.actionGn();
-        break;
       case 'build':
         await this.actionBuild();
         break;
@@ -87,7 +87,6 @@ class ChromeBuilder {
         break;
       case 'all':
         await this.actionSync();
-        await this.actionGn();
         await this.actionBuild();
         await this.actionPackage();
         await this.actionUpload();
@@ -114,26 +113,29 @@ class ChromeBuilder {
   }
 
   /**
-   * Run 'gn gen' command
+   * Run 'gn gen' and 'ninja -C' commands
    */
-  async actionGn() {
-    this.conf_.logger.info('Action config');
+  async actionBuild() {
+    this.conf_.logger.info('Action build');
+
+    if (this.conf_.cleanBuild) {
+      try {
+        rimraf.sync(this.conf_.outDir);
+      } catch (e) {
+        this.conf_.logger.error(e);
+      }
+    }
+
     await this.childCommand('gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
 
     if (!this.childResult_.success) {
       await this.uploadLogfile();
       process.exit(1);
     }
-  }
 
-  /**
-   * Run 'ninja -C' command
-   */
-  async actionBuild() {
-    this.conf_.logger.info('Action build');
-
-    // Remove SUCCESS file if changeset different
-    if (this.lastSucceedChangeset_ !== this.latestChangeset_) {
+    // Remove SUCCEED file if changeset different
+    if (fs.existsSync(this.lastSucceedChangesetFile_) &&
+        (this.lastSucceedChangeset_ !== this.latestChangeset_)) {
       try {
         fs.unlinkSync(this.lastSucceedChangesetFile_);
         this.lastSucceedChangeset_ = null;

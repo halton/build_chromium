@@ -190,7 +190,7 @@ class ChromeBuilderConf {
       case 'linux':
         return ['chrome', 'unstable_deb'];
       case 'mac':
-        return ['chrome', 'mac_installer_app'];
+        return ['chrome', 'chrome_app'];
       default:
         return null;
     }
@@ -210,17 +210,12 @@ class ChromeBuilderConf {
         installer = '//out/linux_x64_release/chromium-browser-unstable_65.0.3324.0-1_amd64.deb';
         return path.join(this.outDir_, installer.split('/')[4]);
       case 'mac':
-        // TODO(halton): Run gn desc <out_dir> //chrome/installer/mac/app:mac_installer_app outputs
-        // to get below string output //out/mac_x64_release/Chromium Installer.app,
-        // then use hdiutil to create a dmg
-        installer = 'Chromium.dmg';
-        spawnSync('hdiutil',
-                  ['create', '-fs', 'HFS+',
-                   '-srcfolder', 'Chromium Installer.app',
-                   '-volname', 'Chromium',
-                   installer],
+        // TODO(halton): Run gn desc <out_dir> //chrome:chrome_app outputs
+        installer = 'chromium-mac.zip';
+        spawnSync('zip',
+                  ['-r', path.join(this.outDir, installer), 'Chromium.app', 'pnacl'],
                   {cwd: this.outDir});
-        return path.join(this.outDir_, installer);
+        return path.join(this.outDir, installer);
       default:
         return null;
     }

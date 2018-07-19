@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const rimraf = require('rimraf');
 const {spawn} = require('child_process');
+const crypto = require('crypto');
 
 /**
  * Chrome builder class.
@@ -181,6 +182,16 @@ class ChromeBuilder {
     }
     await this.makeRemoteDir();
     await this.childCommand('scp', [this.conf_.packagedFile, this.remoteSshDir_]);
+
+    let md5Content = crypto.createHash('md5').update(fs.readFileSync(this.conf_.packagedFile)).digest('hex');
+    let md5File = this.conf_.packagedFile + '.md5';
+
+    fs.writeFile(md5File, md5Content, (err) => {
+      if (err) throw err;
+
+      this.childCommand('scp', [md5File, this.remoteSshDir_]);
+    });
+
     await this.uploadLogfile();
   }
 

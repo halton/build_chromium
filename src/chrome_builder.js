@@ -258,7 +258,6 @@ class ChromeBuilder {
 
       child.stderr.on('data', (data) => {
         this.conf_.logger.error(data.toString());
-        reject();
       });
 
       child.on('close', (code) => {

@@ -8,6 +8,7 @@ const path = require('path');
 const rimraf = require('rimraf');
 const {spawn} = require('child_process');
 const crypto = require('crypto');
+const os = require('os');
 
 /**
  * Chrome builder class.
@@ -104,8 +105,7 @@ class ChromeBuilder {
   async actionSync() {
     this.conf_.logger.info('Action sync');
 
-    await this.childCommand('git', ['pull', '--rebase']);
-    await this.childCommand('gclient', ['sync']);
+    await this.childCommand(os.platform() == 'win32' ? 'gclient.bat' : 'gclient', ['sync']);
 
     if (!this.childResult_.success) {
       await this.uploadLogfile();
@@ -127,7 +127,7 @@ class ChromeBuilder {
       }
     }
 
-    await this.childCommand('gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
+    await this.childCommand(os.platform() == 'win32' ? 'gn.bat' : 'gn', ['gen', `--args=${this.conf_.gnArgs}`, this.conf_.outDir]);
 
     if (!this.childResult_.success) {
       await this.uploadLogfile();
@@ -200,6 +200,7 @@ class ChromeBuilder {
    */
   async updateChangeset() {
     let obj = {};
+    await this.childCommand('git', ['pull', '--rebase']);
     await this.childCommand('git', ['rev-parse', 'HEAD'], obj);
     this.latestChangeset_ = obj.changeset;
     this.conf_.logger.info(`HEAD is at ${this.latestChangeset_}`);
@@ -223,6 +224,8 @@ class ChromeBuilder {
     }
     this.remoteDir_ += success ? '_SUCCEED': '_FAILED';
     this.remoteSshDir_ = this.remoteSshHost_ + ':' + this.remoteDir_ + '/';
+    if (os.platform() == 'win32')
+      this.remoteDir_.replace(/\\/, "/");
 
     await this.childCommand('ssh', [this.remoteSshHost_, 'mkdir', '-p', this.remoteDir_]);
   }

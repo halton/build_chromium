@@ -191,6 +191,8 @@ class ChromeBuilderConf {
         return ['chrome', 'unstable_deb'];
       case 'mac':
         return ['chrome', 'chrome_app'];
+      case 'win':
+        return ['chrome'];
       default:
         return null;
     }
@@ -216,6 +218,10 @@ class ChromeBuilderConf {
                   ['-r', path.join(this.outDir, installer), 'Chromium.app', 'pnacl'],
                   {cwd: this.outDir});
         return path.join(this.outDir, installer);
+      case 'win':
+        spawnSync('ninja',
+                  ['-C', this.outDir, 'mini_installer'], {cwd: this.rootDir});
+        return path.join(this.outDir, "mini_installer.exe");
       default:
         return null;
     }
